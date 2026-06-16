@@ -68,6 +68,44 @@
             border: 0;
         }
 
+        /* Nova Estilização do Histórico */
+        .historico-section {
+            margin-top: 40px;
+            text-align: left;
+            border-top: 2px solid #eee;
+            padding-top: 20px;
+        }
+        .historico-section h2 {
+            font-size: 1.4rem;
+            color: #333;
+            margin-bottom: 15px;
+        }
+        .historico-lista {
+            list-style: none;
+            padding: 0;
+        }
+        .historico-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 12px;
+            background: #f9f9f9;
+            border-radius: 8px;
+            margin-bottom: 10px;
+            border: 1px solid #eaeaea;
+        }
+        .historico-info {
+            font-weight: 500;
+            color: #444;
+            word-break: break-all;
+        }
+        .btn-retomar {
+            background-color: #28a745;
+            padding: 8px 16px;
+            font-size: 14px;
+        }
+        .btn-retomar:hover { background-color: #218838; }
+
         footer {
             margin-top: 60px;
             font-size: 14px;
@@ -75,13 +113,8 @@
             border-top: 1px solid #eee;
             padding-top: 20px;
         }
-        code {
-            background: #f4f4f4;
-            padding: 2px 6px;
-            border-radius: 4px;
-            font-family: monospace;
-        }
     </style>
+    <script src="https://www.youtube.com/iframe_api"></script>
 </head>
 <body>
 
@@ -90,67 +123,187 @@
 
     <div class="search-box">
         <input type="text" id="urlInput" placeholder="Cole a URL do YouTube ou ID aqui...">
-        <button onclick="carregarVideo()">Assistir</button>
+        <button onclick="carregarVideoDoInput()">Assistir</button>
     </div>
 
     <div class="video-container" id="playerContainer">
-        <iframe id="videoPlayer" allow="autoplay; encrypted-media; picture-in-picture" allowfullscreen></iframe>
+        <div id="videoPlayer"></div>
+    </div>
+
+    <div class="historico-section">
+        <h2>Seu Histórico (Retomar de onde parou)</h2>
+        <ul id="historicoLista" class="historico-lista">
+            </ul>
     </div>
 
     <footer>
-        <p>💡 <strong>Dica de parâmetros:</strong> Aceita links no formato padrão ou parâmetros do tipo <code>?yt=LINK</code>.</p>
+        <p>💡 <strong>Privacidade Total:</strong> Seu histórico e tempos salvos ficam guardados apenas no seu navegador.</p>
     </footer>
 
     <script>
-        // Função corrigida para extrair estritamente apenas a string do ID
+        let player;
+        let videoIdAtual = "";
+        let checarTempoInterval;
+
+        // 1. Extrai o ID do vídeo
         function extrairVideoID(url) {
             url = url.trim();
-            
             if (url.length === 11 && !url.includes('/') && !url.includes('=')) {
                 return url;
             }
-
-            // Expressão regular calibrada para extrair apenas o grupo de captura puro (índice 1)
             const regex = /(?:youtube\.com\/(?:[^\/]+\/.+\/|(?:v|e(?:mbed)?)\/|.*[?&]v=)|youtu\.be\/|youtube\.com\/shorts\/)([^"&?\/\s]{11})/;
             const match = url.match(regex);
-            
             return (match && match[1]) ? match[1] : null;
         }
 
-        function carregarVideo() {
+        // Chamado quando o usuário clica no botão principal
+        function carregarVideoDoInput() {
             const input = document.getElementById('urlInput').value;
             const videoId = extrairVideoID(input);
-            const container = document.getElementById('playerContainer');
-            const iframe = document.getElementById('videoPlayer');
-
             if (videoId) {
-                // Monta a URL limpa usando interpolação de strings corrigida
-                iframe.src = "https://www.youtube-nocookie.com/embed/" + videoId + "?autoplay=1&modestbranding=1&rel=0";
-                container.style.display = 'block';
-                container.scrollIntoView({ behavior: 'smooth' });
+                // Ao carregar um vídeo novo do input, vemos se ele já tem tempo salvo, senão começa do 0
+                const tempoSalvo = obterTempoSalvo(videoId);
+                carregarPlayerAPI(videoId, tempoSalvo);
             } else {
                 alert('Erro: Link inválido. Certifique-se de colar um link real do YouTube ou o ID de 11 dígitos.');
             }
         }
 
+        // 2. Inicializa ou Atualiza o Player usando a API oficial do YouTube (com domínio no-cookie)
+        function carregarPlayerAPI(videoId, tempoInicial = 0) {
+            videoIdAtual = videoId;
+            const container = document.getElementById('playerContainer');
+            container.style.display = 'block';
+            container.scrollIntoView({ behavior: 'smooth' });
+
+            // Adiciona o vídeo ao histórico local
+            salvarNoHistorico(videoId);
+
+            // Se o player já existe, apenas mudamos o vídeo e aplicamos o tempo
+            if (player && typeof player.cueVideoById === 'function') {
+                player.loadVideoById({
+                    videoId: videoId,
+                    startSeconds: tempoInicial
+                });
+            } else {
+                // Cria o player pela primeira vez
+                player = new YT.Player('videoPlayer', {
+                    height: '100%',
+                    width: '100%',
+                    videoId: videoId,
+                    host: 'https://www.youtube-nocookie.com', // Mantém o bloqueio de cookies/anúncios
+                    playerVars: {
+                        'autoplay': 1,
+                        'modestbranding': 1,
+                        'rel': 0,
+                        'start': tempoInicial
+                    },
+                    events: {
+                        'onStateChange': onPlayerStateChange
+                    }
+                });
+            }
+        }
+
+        // 3. Monitora o vídeo. Se estiver rodando (Play), salva o tempo a cada 2 segundos
+        function onPlayerStateChange(event) {
+            // YT.PlayerState.PLAYING equivale a 1
+            if (event.data == YT.PlayerState.PLAYING) {
+                checarTempoInterval = setInterval(function() {
+                    if (player && typeof player.getCurrentTime === 'function') {
+                        let tempoAtual = Math.floor(player.getCurrentTime());
+                        salvarTempoVideo(videoIdAtual, tempoAtual);
+                    }
+                }, 2000);
+            } else {
+                // Se pausou ou parou, limpa o intervalo para não gastar processamento
+                clearInterval(checarTempoInterval);
+            }
+        }
+
+        // --- FUNÇÕES DE ARMAZENAMENTO LOCAL (LOCALSTORAGE) ---
+
+        function salvarTempoVideo(videoId, segundos) {
+            localStorage.setItem('tempo_' + videoId, segundos);
+        }
+
+        function obterTempoSalvo(videoId) {
+            const tempo = localStorage.getItem('tempo_' + videoId);
+            return tempo ? parseInt(tempo) : 0;
+        }
+
+        function formatarTempo(segundos) {
+            if (segundos === 0) return "Início";
+            let hrs = Math.floor(segundos / 3600);
+            let mins = Math.floor((segundos % 3600) / 60);
+            let secs = segundos % 60;
+            let resultado = "";
+            if (hrs > 0) resultado += hrs + "h ";
+            if (mins > 0 || hrs > 0) resultado += mins + "m ";
+            resultado += secs + "s";
+            return resultado;
+        }
+
+        function salvarNoHistorico(videoId) {
+            let historico = JSON.parse(localStorage.getItem('yt_historico')) || [];
+            // Remove se já existir para não duplicar, pondo no topo
+            historico = historico.filter(id => id !== videoId);
+            historico.unshift(videoId); // Adiciona no início da lista
+            
+            // Limita o histórico aos últimos 5 vídeos para não poluir a tela
+            if (historico.length > 5) historico.pop();
+            
+            localStorage.setItem('yt_historico', JSON.stringify(historico));
+            atualizarListaHistoricoNaTela();
+        }
+
+        function atualizarListaHistoricoNaTela() {
+            const listaUl = document.getElementById('historicoLista');
+            listaUl.innerHTML = ""; // Limpa a lista atual
+
+            let historico = JSON.parse(localStorage.getItem('yt_historico')) || [];
+
+            if (historico.length === 0) {
+                listaUl.innerHTML = "<li style='color:#888;'>Nenhum vídeo assistido ainda.</li>";
+                return;
+            }
+
+            historico.forEach(id => {
+                const tempoSalvo = obterTempoSalvo(id);
+                const li = document.createElement('li');
+                li.className = 'historico-item';
+
+                li.innerHTML = `
+                    <span class="historico-info">Vídeo ID: ${id} <br><small style="color:#888;">Parou em: ${formatarTempo(tempoSalvo)}</small></span>
+                    <button class="btn-retomar" onclick="carregarPlayerAPI('${id}', ${tempoSalvo})">Retomar</button>
+                `;
+                listaUl.appendChild(li);
+            });
+        }
+
+        // 4. Sistema automático ao carregar a página
         window.onload = function() {
+            // Desenha o histórico salvo anteriormente
+            atualizarListaHistoricoNaTela();
+
             const params = new URLSearchParams(window.location.search);
             const ytParam = params.get('yt');
 
             if (ytParam) {
-                document.getElementById('urlInput').value = ytParam;
-                carregarVideo();
+                const videoId = extrairVideoID(ytParam);
+                if (videoId) {
+                    document.getElementById('urlInput').value = ytParam;
+                    setTimeout(() => { carregarPlayerAPI(videoId, obterTempoSalvo(videoId)); }, 500);
+                }
             } else {
                 const partesCaminho = window.location.pathname.split('/');
                 const possivelId = partesCaminho[partesCaminho.length - 1];
-                
                 if (possivelId.length === 11) {
                     document.getElementById('urlInput').value = possivelId;
-                    carregarVideo();
+                    setTimeout(() => { carregarPlayerAPI(possivelId, obterTempoSalvo(possivelId)); }, 500);
                 }
             }
         }
     </script>
-
 </body>
 </html>

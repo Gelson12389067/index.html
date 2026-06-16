@@ -68,6 +68,82 @@
             border: 0;
         }
 
+        .history-container {
+            margin-top: 40px;
+            text-align: left;
+            background: #f9f9f9;
+            padding: 20px;
+            border-radius: 12px;
+            border: 1px solid #eee;
+        }
+        .history-container h2 {
+            font-size: 1.4rem;
+            margin-top: 0;
+            color: #333;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .clear-btn {
+            background: #ff4d4d;
+            font-size: 12px;
+            padding: 6px 12px;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: bold;
+            transition: background 0.2s;
+        }
+        .clear-btn:hover { background: #cc0000; }
+        
+        /* Modificado para exibir as capas em uma grade flexível */
+        .history-list {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+            max-height: 320px;
+            overflow-y: auto;
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+            gap: 15px;
+        }
+        .history-item {
+            padding: 0;
+            border-bottom: none;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            position: relative;
+        }
+        
+        /* Novo estilo para as capas de vídeo */
+        .history-thumb-wrapper {
+            width: 100%;
+            aspect-ratio: 16/9;
+            border-radius: 8px;
+            overflow: hidden;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+            cursor: pointer;
+            transition: transform 0.2s;
+            background-color: #000;
+        }
+        .history-thumb-wrapper:hover {
+            transform: scale(1.05);
+        }
+        .history-thumb {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            display: block;
+        }
+        .history-time {
+            font-size: 11px;
+            color: #888;
+            margin-top: 5px;
+            text-align: center;
+        }
+
         footer {
             margin-top: 60px;
             font-size: 14px;
@@ -97,12 +173,16 @@
         <iframe id="videoPlayer" allow="autoplay; encrypted-media; picture-in-picture" allowfullscreen></iframe>
     </div>
 
+    <div class="history-container" id="historyBox">
+        <h2>Histórico de Vídeos <button class="clear-btn" onclick="limparHistorico()">Limpar</button></h2>
+        <ul class="history-list" id="historyList"></ul>
+    </div>
+
     <footer>
         <p>💡 <strong>Dica de parâmetros:</strong> Aceita links no formato padrão ou parâmetros do tipo <code>?yt=LINK</code>.</p>
     </footer>
 
     <script>
-        // Função corrigida para extrair estritamente apenas a string do ID
         function extrairVideoID(url) {
             url = url.trim();
             
@@ -110,7 +190,6 @@
                 return url;
             }
 
-            // Expressão regular calibrada para extrair apenas o grupo de captura puro (índice 1)
             const regex = /(?:youtube\.com\/(?:[^\/]+\/.+\/|(?:v|e(?:mbed)?)\/|.*[?&]v=)|youtu\.be\/|youtube\.com\/shorts\/)([^"&?\/\s]{11})/;
             const match = url.match(regex);
             
@@ -124,16 +203,76 @@
             const iframe = document.getElementById('videoPlayer');
 
             if (videoId) {
-                // Monta a URL limpa usando interpolação de strings corrigida
-                iframe.src = "https://www.youtube-nocookie.com/embed/" + videoId + "?autoplay=1&modestbranding=1&rel=0";
+                iframe.src = "https://youtube-nocookie.com" + videoId + "?autoplay=1&modestbranding=1&rel=0";
                 container.style.display = 'block';
                 container.scrollIntoView({ behavior: 'smooth' });
+                
+                salvarNoHistorico(videoId);
             } else {
                 alert('Erro: Link inválido. Certifique-se de colar um link real do YouTube ou o ID de 11 dígitos.');
             }
         }
 
+        function salvarNoHistorico(id) {
+            let historico = JSON.parse(localStorage.getItem('yt_history')) || [];
+            
+            historico = historico.filter(item => item.id !== id);
+            
+            const agora = new Date();
+            const dataFormatada = agora.toLocaleDateString('pt-BR') + ' ' + agora.toLocaleTimeString('pt-BR', {hour: '2-digit', minute:'2-digit'});
+            
+            historico.unshift({ id: id, data: dataFormatada });
+            
+            if (historico.length > 50) historico.pop();
+            
+            localStorage.setItem('yt_history', JSON.stringify(historico));
+            renderizarHistorico();
+        }
+
+        // Alterado para renderizar a imagem de capa em vez do ID textual
+        function renderizarHistorico() {
+            const lista = document.getElementById('historyList');
+            const historico = JSON.parse(localStorage.getItem('yt_history')) || [];
+            
+            lista.innerHTML = '';
+            
+            if (historico.length === 0) {
+                lista.innerHTML = '<li style="color: #999; padding: 10px; grid-column: 1 / -1; text-align: center;">Nenhum vídeo assistido ainda.</li>';
+                return;
+            }
+            
+            historico.forEach(item => {
+                const li = document.createElement('li');
+                li.className = 'history-item';
+                
+                // Endereço público da miniatura de média qualidade oficial do YouTube
+                const thumbUrl = "https://img.youtube.com/vi/" + item.id + "/mqdefault.jpg";
+                
+                li.innerHTML = `
+                    <div class="history-thumb-wrapper" onclick="assistirDoHistorico('${item.id}')" title="Assistir novamente">
+                        <img class="history-thumb" src="${thumbUrl}" alt="Capa do vídeo" onerror="this.src='https://youtube.com{item.id}/0.jpg'">
+                    </div>
+                    <span class="history-time">${item.data}</span>
+                `;
+                lista.appendChild(li);
+            });
+        }
+
+        function assistirDoHistorico(id) {
+            document.getElementById('urlInput').value = id;
+            carregarVideo();
+        }
+
+        function limparHistorico() {
+            if (confirm('Tem certeza que deseja apagar todo o histórico?')) {
+                localStorage.removeItem('yt_history');
+                renderizarHistorico();
+            }
+        }
+
         window.onload = function() {
+            renderizarHistorico();
+
             const params = new URLSearchParams(window.location.search);
             const ytParam = params.get('yt');
 

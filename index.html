@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Assistidor de YouTube Sem Cookies</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            max-width: 800px;
+            margin: 40px auto;
+            padding: 0 20px;
+            text-align: center;
+            background-color: #ffffff;
+            color: #222222;
+            line-height: 1.6;
+        }
+        h1 { font-size: 2rem; margin-bottom: 10px; color: #111; }
+        p { color: #666; margin-bottom: 30px; }
+        
+        .search-box {
+            margin-bottom: 30px;
+        }
+        input[type="text"] {
+            width: 70%;
+            max-width: 500px;
+            padding: 14px;
+            font-size: 16px;
+            border: 2px solid #eaeaea;
+            border-radius: 8px;
+            outline: none;
+            transition: border-color 0.2s;
+        }
+        input[type="text"]:focus {
+            border-color: #0066cc;
+        }
+        button {
+            padding: 14px 24px;
+            font-size: 16px;
+            background-color: #0066cc;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            margin-left: 8px;
+            cursor: pointer;
+            font-weight: bold;
+            transition: background 0.2s;
+        }
+        button:hover { background-color: #0052a3; }
+
+        .video-container {
+            margin-top: 20px;
+            position: relative;
+            padding-bottom: 56.25%;
+            height: 0;
+            overflow: hidden;
+            display: none;
+            border-radius: 12px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.08);
+            background: #000;
+        }
+        .video-container iframe {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            border: 0;
+        }
+
+        footer {
+            margin-top: 60px;
+            font-size: 14px;
+            color: #888;
+            border-top: 1px solid #eee;
+            padding-top: 20px;
+        }
+        code {
+            background: #f4f4f4;
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-family: monospace;
+        }
+    </style>
+</head>
+<body>
+
+    <h1>Assistidor de YouTube Sem Cookies</h1>
+    <p>Cole o link ou ID do vídeo abaixo para assistir sem anúncios invasivos ou rastreamento.</p>
+
+    <div class="search-box">
+        <input type="text" id="urlInput" placeholder="Cole a URL do YouTube ou ID aqui...">
+        <button onclick="carregarVideo()">Assistir</button>
+    </div>
+
+    <div class="video-container" id="playerContainer">
+        <iframe id="videoPlayer" allow="autoplay; encrypted-media; picture-in-picture" allowfullscreen></iframe>
+    </div>
+
+    <footer>
+        <p>💡 <strong>Dica de parâmetros:</strong> Aceita links no formato padrão ou parâmetros do tipo <code>?yt=LINK</code>.</p>
+    </footer>
+
+    <script>
+        // Função corrigida para extrair estritamente apenas a string do ID
+        function extrairVideoID(url) {
+            url = url.trim();
+            
+            if (url.length === 11 && !url.includes('/') && !url.includes('=')) {
+                return url;
+            }
+
+            // Expressão regular calibrada para extrair apenas o grupo de captura puro (índice 1)
+            const regex = /(?:youtube\.com\/(?:[^\/]+\/.+\/|(?:v|e(?:mbed)?)\/|.*[?&]v=)|youtu\.be\/|youtube\.com\/shorts\/)([^"&?\/\s]{11})/;
+            const match = url.match(regex);
+            
+            return (match && match[1]) ? match[1] : null;
+        }
+
+        function carregarVideo() {
+            const input = document.getElementById('urlInput').value;
+            const videoId = extrairVideoID(input);
+            const container = document.getElementById('playerContainer');
+            const iframe = document.getElementById('videoPlayer');
+
+            if (videoId) {
+                // Monta a URL limpa usando interpolação de strings corrigida
+                iframe.src = "https://www.youtube-nocookie.com/embed/" + videoId + "?autoplay=1&modestbranding=1&rel=0";
+                container.style.display = 'block';
+                container.scrollIntoView({ behavior: 'smooth' });
+            } else {
+                alert('Erro: Link inválido. Certifique-se de colar um link real do YouTube ou o ID de 11 dígitos.');
+            }
+        }
+
+        window.onload = function() {
+            const params = new URLSearchParams(window.location.search);
+            const ytParam = params.get('yt');
+
+            if (ytParam) {
+                document.getElementById('urlInput').value = ytParam;
+                carregarVideo();
+            } else {
+                const partesCaminho = window.location.pathname.split('/');
+                const possivelId = partesCaminho[partesCaminho.length - 1];
+                
+                if (possivelId.length === 11) {
+                    document.getElementById('urlInput').value = possivelId;
+                    carregarVideo();
+                }
+            }
+        }
+    </script>
+
+</body>
+</html>

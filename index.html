@@ -68,7 +68,7 @@
             border: 0;
         }
 
-        /* Nova Estilização do Histórico */
+        /* Estilização do Histórico (Mantida igual, apenas organizada para a foto) */
         .historico-section {
             margin-top: 40px;
             text-align: left;
@@ -86,7 +86,6 @@
         }
         .historico-item {
             display: flex;
-            justify-content: space-between;
             align-items: center;
             padding: 12px;
             background: #f9f9f9;
@@ -94,15 +93,27 @@
             margin-bottom: 10px;
             border: 1px solid #eaeaea;
         }
+        
+        /* Estilo da Capa do Vídeo */
+        .historico-thumb {
+            width: 120px;
+            height: auto;
+            border-radius: 6px;
+            margin-right: 15px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        }
+
         .historico-info {
             font-weight: 500;
             color: #444;
             word-break: break-all;
+            flex-grow: 1; /* Faz o texto ocupar o espaço do meio */
         }
         .btn-retomar {
             background-color: #28a745;
             padding: 8px 16px;
             font-size: 14px;
+            margin-left: 10px;
         }
         .btn-retomar:hover { background-color: #218838; }
 
@@ -145,7 +156,6 @@
         let videoIdAtual = "";
         let checarTempoInterval;
 
-        // 1. Extrai o ID do vídeo
         function extrairVideoID(url) {
             url = url.trim();
             if (url.length === 11 && !url.includes('/') && !url.includes('=')) {
@@ -156,12 +166,10 @@
             return (match && match[1]) ? match[1] : null;
         }
 
-        // Chamado quando o usuário clica no botão principal
         function carregarVideoDoInput() {
             const input = document.getElementById('urlInput').value;
             const videoId = extrairVideoID(input);
             if (videoId) {
-                // Ao carregar um vídeo novo do input, vemos se ele já tem tempo salvo, senão começa do 0
                 const tempoSalvo = obterTempoSalvo(videoId);
                 carregarPlayerAPI(videoId, tempoSalvo);
             } else {
@@ -169,29 +177,25 @@
             }
         }
 
-        // 2. Inicializa ou Atualiza o Player usando a API oficial do YouTube (com domínio no-cookie)
         function carregarPlayerAPI(videoId, tempoInicial = 0) {
             videoIdAtual = videoId;
             const container = document.getElementById('playerContainer');
             container.style.display = 'block';
             container.scrollIntoView({ behavior: 'smooth' });
 
-            // Adiciona o vídeo ao histórico local
             salvarNoHistorico(videoId);
 
-            // Se o player já existe, apenas mudamos o vídeo e aplicamos o tempo
             if (player && typeof player.cueVideoById === 'function') {
                 player.loadVideoById({
                     videoId: videoId,
                     startSeconds: tempoInicial
                 });
             } else {
-                // Cria o player pela primeira vez
                 player = new YT.Player('videoPlayer', {
                     height: '100%',
                     width: '100%',
                     videoId: videoId,
-                    host: 'https://www.youtube-nocookie.com', // Mantém o bloqueio de cookies/anúncios
+                    host: 'https://www.youtube-nocookie.com',
                     playerVars: {
                         'autoplay': 1,
                         'modestbranding': 1,
@@ -205,9 +209,7 @@
             }
         }
 
-        // 3. Monitora o vídeo. Se estiver rodando (Play), salva o tempo a cada 2 segundos
         function onPlayerStateChange(event) {
-            // YT.PlayerState.PLAYING equivale a 1
             if (event.data == YT.PlayerState.PLAYING) {
                 checarTempoInterval = setInterval(function() {
                     if (player && typeof player.getCurrentTime === 'function') {
@@ -216,12 +218,9 @@
                     }
                 }, 2000);
             } else {
-                // Se pausou ou parou, limpa o intervalo para não gastar processamento
                 clearInterval(checarTempoInterval);
             }
         }
-
-        // --- FUNÇÕES DE ARMAZENAMENTO LOCAL (LOCALSTORAGE) ---
 
         function salvarTempoVideo(videoId, segundos) {
             localStorage.setItem('tempo_' + videoId, segundos);
@@ -246,11 +245,9 @@
 
         function salvarNoHistorico(videoId) {
             let historico = JSON.parse(localStorage.getItem('yt_historico')) || [];
-            // Remove se já existir para não duplicar, pondo no topo
             historico = historico.filter(id => id !== videoId);
-            historico.unshift(videoId); // Adiciona no início da lista
+            historico.unshift(videoId);
             
-            // Limita o histórico aos últimos 5 vídeos para não poluir a tela
             if (historico.length > 5) historico.pop();
             
             localStorage.setItem('yt_historico', JSON.stringify(historico));
@@ -259,7 +256,7 @@
 
         function atualizarListaHistoricoNaTela() {
             const listaUl = document.getElementById('historicoLista');
-            listaUl.innerHTML = ""; // Limpa a lista atual
+            listaUl.innerHTML = "";
 
             let historico = JSON.parse(localStorage.getItem('yt_historico')) || [];
 
@@ -273,7 +270,11 @@
                 const li = document.createElement('li');
                 li.className = 'historico-item';
 
+                // Usando a URL oficial de imagens do YouTube (mqdefault garante uma imagem leve e bonita)
+                const urlCapa = `https://img.youtube.com/vi/${id}/mqdefault.jpg`;
+
                 li.innerHTML = `
+                    <img src="${urlCapa}" alt="Capa do vídeo" class="historico-thumb">
                     <span class="historico-info">Vídeo ID: ${id} <br><small style="color:#888;">Parou em: ${formatarTempo(tempoSalvo)}</small></span>
                     <button class="btn-retomar" onclick="carregarPlayerAPI('${id}', ${tempoSalvo})">Retomar</button>
                 `;
@@ -281,9 +282,7 @@
             });
         }
 
-        // 4. Sistema automático ao carregar a página
         window.onload = function() {
-            // Desenha o histórico salvo anteriormente
             atualizarListaHistoricoNaTela();
 
             const params = new URLSearchParams(window.location.search);

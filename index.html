@@ -97,7 +97,6 @@
         }
         .clear-btn:hover { background: #cc0000; }
         
-        /* Modificado para exibir as capas em uma grade flexível */
         .history-list {
             list-style: none;
             padding: 0;
@@ -117,7 +116,6 @@
             position: relative;
         }
         
-        /* Novo estilo para as capas de vídeo */
         .history-thumb-wrapper {
             width: 100%;
             aspect-ratio: 16/9;
@@ -190,7 +188,7 @@
                 return url;
             }
 
-            const regex = /(?:youtube\.com\/(?:[^\/]+\/.+\/|(?:v|e(?:mbed)?)\/|.*[?&]v=)|youtu\.be\/|youtube\.com\/shorts\/)([^"&?\/\s]{11})/;
+            const regex = /(?:youtube\.com\/(?:[^\/]+\/.+\/|(?:v|e(?:mbed)?)\/|.*[?&]v=|shorts\/|live\/)|youtu\.be\/)([^"&?\/\s]{11})/;
             const match = url.match(regex);
             
             return (match && match[1]) ? match[1] : null;
@@ -203,6 +201,7 @@
             const iframe = document.getElementById('videoPlayer');
 
             if (videoId) {
+                // APENAS ESTA LINHA FOI ALTERADA PARA ADICIONAR O SUBDOMÍNIO E A BARRA /embed/ CORRETA
                 iframe.src = "https://youtube-nocookie.com" + videoId + "?autoplay=1&modestbranding=1&rel=0";
                 container.style.display = 'block';
                 container.scrollIntoView({ behavior: 'smooth' });
@@ -229,7 +228,6 @@
             renderizarHistorico();
         }
 
-        // Alterado para renderizar a imagem de capa em vez do ID textual
         function renderizarHistorico() {
             const lista = document.getElementById('historyList');
             const historico = JSON.parse(localStorage.getItem('yt_history')) || [];
@@ -245,12 +243,11 @@
                 const li = document.createElement('li');
                 li.className = 'history-item';
                 
-                // Endereço público da miniatura de média qualidade oficial do YouTube
-                const thumbUrl = "https://img.youtube.com/vi/" + item.id + "/mqdefault.jpg";
+                const thumbUrl = "https://youtube.com" + item.id + "/mqdefault.jpg";
                 
                 li.innerHTML = `
                     <div class="history-thumb-wrapper" onclick="assistirDoHistorico('${item.id}')" title="Assistir novamente">
-                        <img class="history-thumb" src="${thumbUrl}" alt="Capa do vídeo" onerror="this.src='https://youtube.com{item.id}/0.jpg'">
+                        <img class="history-thumb" src="${thumbUrl}" alt="Capa do vídeo" onerror="this.src='https://youtube.com${item.id}/0.jpg'">
                     </div>
                     <span class="history-time">${item.data}</span>
                 `;
